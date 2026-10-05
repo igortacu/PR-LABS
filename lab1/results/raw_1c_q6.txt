@@ -1,0 +1,3 @@
+RESULT task=1c variant=producer-consumer threads=8 time_ms=1896.5 peak_mb=2.3 neg=24996683 pos=25003295 zero=22 total=50000000 batch=10000 qcap=0 maxq=1 read_lines=50000000
+RESULT task=1c variant=producer-consumer threads=8 time_ms=99366.3 peak_mb=1.8 neg=24996683 pos=25003295 zero=22 total=50000000 batch=1 qcap=100 maxq=100 read_lines=50000000
+RESULT task=1c variant=producer-consumer threads=8 time_ms=57144.1 peak_mb=9.0 neg=24996683 pos=25003295 zero=22 total=50000000 batch=1 qcap=0 maxq=71624 read_lines=50000000

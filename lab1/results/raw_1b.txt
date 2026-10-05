@@ -1,0 +1,9 @@
+RESULT task=1b variant=unsync threads=8 time_ms=63.3 peak_mb=193.5 neg=6055822 pos=6518520 zero=22 total=12574364 
+RESULT task=1b variant=unsync threads=8 time_ms=30.3 peak_mb=193.6 neg=5833764 pos=5813791 zero=22 total=11647577 
+RESULT task=1b variant=unsync threads=8 time_ms=32.9 peak_mb=193.6 neg=6338705 pos=5775269 zero=22 total=12113996 
+RESULT task=1b variant=mutex threads=8 time_ms=1050.8 peak_mb=193.6 neg=24996683 pos=25003295 zero=22 total=50000000 
+RESULT task=1b variant=mutex threads=8 time_ms=1101.1 peak_mb=193.6 neg=24996683 pos=25003295 zero=22 total=50000000 
+RESULT task=1b variant=mutex threads=8 time_ms=1079.7 peak_mb=193.6 neg=24996683 pos=25003295 zero=22 total=50000000 
+RESULT task=1b variant=local threads=8 time_ms=13.1 peak_mb=193.6 neg=24996683 pos=25003295 zero=22 total=50000000 
+RESULT task=1b variant=local threads=8 time_ms=10.6 peak_mb=193.6 neg=24996683 pos=25003295 zero=22 total=50000000 
+RESULT task=1b variant=local threads=8 time_ms=11.1 peak_mb=193.5 neg=24996683 pos=25003295 zero=22 total=50000000 

@@ -1,0 +1,342 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{fancyhdr}
+\usepackage{lmodern}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+
+\geometry{top=2cm,bottom=2cm,left=2.5cm,right=2.5cm}
+\setstretch{1.3}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rfoot{\thepage}
+\captionsetup[figure]{position=bottom,justification=centering}
+
+\definecolor{codegray}{rgb}{0.95,0.95,0.95}
+\lstset{language=C,basicstyle=\ttfamily\small,backgroundcolor=\color{codegray},
+  frame=single,breaklines=true,showstringspaces=false,tabsize=4}
+
+\graphicspath{{images/}}
+
+\newcommand{\img}[3][0.95]{%
+  \begin{figure}[H]\centering
+    \IfFileExists{images/#2}{\includegraphics[width=#1\textwidth]{#2}}{%
+      \fbox{\parbox{0.85\textwidth}{\centering\textbf{Image missing:} \texttt{\detokenize{#2}}}}}%
+    \caption{#3}
+  \end{figure}}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\fillme}[1]{\textbf{\textcolor{red}{[#1]}}}
+
+\begin{document}
+
+\begin{titlepage}
+\begin{center}
+  \IfFileExists{utm_logo_1.jpg}{\includegraphics[width=0.23\textwidth]{utm_logo_1.jpg}\\[0.8em]}{}
+
+  \textbf{MINISTRY OF EDUCATION AND RESEARCH}\\
+  \textbf{OF THE REPUBLIC OF MOLDOVA}\\[0.5em]
+  \textbf{TECHNICAL UNIVERSITY OF MOLDOVA}\\
+  \textbf{Faculty of Computers, Informatics and Microelectronics}\\
+  \textbf{Department of Software Engineering and Automatics}\\[2em]
+
+  \vspace{1.5cm}
+  \textbf{\Large Tacu Igor \textemdash{} FAF-242}\\[3em]
+
+  \textbf{\Large REPORT}\\[0.5em]
+  Laboratory Work No.\ 1\\[0.5em]
+  \textbf{Computer Programming}\\[0.5em]
+  \textbf{Concurrency in Practice}\\[3em]
+
+  \vfill
+  \begin{flushright}
+    Lecturer:\\
+    Bitca Ernest\\
+    DISA, FCIM, UTM
+  \end{flushright}
+  \vfill
+
+  \large \textbf{Chi\c{s}in\u{a}u \textemdash{} 2026}
+\end{center}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+\section{Hardware and Setup}
+
+\begin{table}[H]
+  \centering
+  \caption{Test machine}
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    CPU & Apple M1 Pro \\
+    Physical cores & 8 (6 performance + 2 efficiency) \\
+    Logical processors & 8 (no hyper-threading) \\
+    RAM & 16 GB \\
+    Disk & internal NVMe SSD (Apple Fabric) \\
+    USB drive & \fillme{model, capacity, USB version} \\
+    Operating system & macOS 27.0 (build 26A5425a) \\
+    Language / runtime & C (Apple clang 17.0.0, \code{-O2}), POSIX threads \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\noindent\textbf{Data.} \code{numbers.txt}: 50\,000\,000 random integers in
+$[-10^6, 10^6]$ (SplitMix64, seed 42), 369\,MB. Reference totals:
+negative = 24\,996\,683, positive = 25\,003\,295, zero = 22 (sum 50\,000\,000).
+Every run below produced exactly these totals, except the deliberately
+unsynchronised version in Task~1b.
+
+\noindent\textbf{Method.} One program (\code{lab1/lab1.c}), task chosen by
+command-line arguments. Time = \code{clock\_gettime(CLOCK\_MONOTONIC)} from
+thread creation to the last join. Peak memory = \code{ru\_maxrss}.
+Tasks 1a/1c: median of 5/3 runs, file in the OS cache.
+
+\section{Task 1: One File}
+
+\subsection{Task 1a: Counting with threads}
+
+The file is cut by byte offset into $T$ parts. A part starts at the first line
+start at or after its offset; the next part starts at the same place, so every
+line is counted exactly once. Each thread reads only its part with \code{pread}
+(1\,MB buffer) and parses it.
+
+\img{task1a.png}{Task 1a: time, speed-up and peak memory vs.\ threads}
+
+\begin{table}[H]
+  \centering
+  \caption{Task 1a results}
+  \begin{tabular}{@{}rrrr@{}}
+    \toprule
+    Threads & Time (ms) & Speed-up & Peak (MB) \\
+    \midrule
+    1 & 471 & 1.00 & 2.6 \\
+    2 & 242 & 1.94 & 3.7 \\
+    4 & 186 & 2.53 & 5.7 \\
+    8 & 116 & 4.05 & 9.8 \\
+    16 & 104 & 4.51 & 18.0 \\
+    32 & 93 & 5.06 & 34.4 \\
+    64 & 91 & 5.17 & 48.9 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Task 1b: Three ways to count}
+
+The numbers are loaded into an \code{int} array (not measured); 8 threads (=
+logical processors) each take one eighth of the array. The unsynchronised
+counters are \code{volatile} so the compiler cannot hide the race in a register.
+
+\begin{table}[H]
+  \centering
+  \caption{Task 1b: negative / positive / zero totals (expected 24\,996\,683 / 25\,003\,295 / 22)}
+  \small
+  \begin{tabular}{@{}llrr@{}}
+    \toprule
+    Version & Run & Time (ms) & Sum of totals \\
+    \midrule
+    1. shared, no sync & 1 & 63.3 & 12\,574\,364 \\
+    & 2 & 30.3 & 11\,647\,577 \\
+    & 3 & 32.9 & 12\,113\,996 \\
+    2. shared, mutex & median of 3 & 1079.7 & 50\,000\,000 \\
+    3. per-thread counters & median of 3 & 11.1 & 50\,000\,000 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\img[0.55]{task1b.png}{Task 1b: time of the three versions}
+
+\subsection{Task 1c: Producer and consumers}
+
+The main thread is the reader: \code{fgets} line by line, 10\,000 lines per
+batch, into a queue (mutex + two condition variables) of at most 100 batches.
+Workers pop and parse batches; the reader closes the queue at end of file.
+Workers = 1\ldots 64.
+
+\img{task1c.png}{Task 1c: time, speed-up and peak memory vs.\ workers}
+
+\begin{table}[H]
+  \centering
+  \caption{Task 1c results}
+  \begin{tabular}{@{}rrrr@{}}
+    \toprule
+    Workers & Time (ms) & Speed-up & Peak (MB) \\
+    \midrule
+    1 & 1765 & 1.00 & 2.7 \\
+    2 & 1757 & 1.01 & 2.1 \\
+    4 & 1886 & 0.94 & 2.4 \\
+    8 & 1761 & 1.00 & 4.5 \\
+    16 & 1755 & 1.01 & 2.4 \\
+    32 & 1804 & 0.98 & 3.2 \\
+    64 & 2269 & 0.78 & 4.2 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Answers to the questions of Task 1}
+
+\begin{enumerate}
+  \item \textbf{Where does the speed-up stop growing?} Almost at 8 threads
+        (4.05$\times$); 16/32/64 add only 4.5/5.1/5.2$\times$. The CPU has 8
+        physical = 8 logical processors, so beyond 8 there is no extra
+        hardware to run on. Even at 8 the speed-up is 4, not 8, because 2 of the
+        8 cores are slower efficiency cores and the threads share memory bandwidth.
+  \item \textbf{Why do 32 and 64 threads not help?} They are not slower
+        (93 and 91\,ms vs.\ 116\,ms), only slightly faster: the extra threads
+        cannot run in parallel on 8 processors, they only even out the load
+        (a thread that lands on a slow core no longer delays the end). Each
+        thread adds thread-creation cost and a 1\,MB buffer.
+  \item \textbf{Does peak memory depend on the number of threads?} Yes, in
+        1a it grows from 2.6 to 48.9\,MB: every thread owns a 1\,MB read buffer
+        plus its stack. In 1c it does not (2--4.5\,MB): the data is held in the
+        queue, whose size is capped and which here never held more than one batch.
+  \item \textbf{Ranking of 1b by time:} 3 per-thread counters (11\,ms)
+        $<$ 1 no synchronisation (30--63\,ms) $<$ 2 mutex (1080\,ms).
+        Correct: 2 and 3. Version 1 is fast only because it is wrong: the
+        threads overwrite each other's increments and about 75\% are lost
+        (about 12\,M of 50\,M counted, different every run). Version 2 is
+        correct but every element takes a contended lock, so the threads mostly
+        wait for each other (100$\times$ slower than version 3). Version 3 has
+        no sharing at all; only 8 additions at the end.
+  \item \textbf{1c vs.\ 1a.} 1a is faster: 471\,ms (1 thread) to 91\,ms (64)
+        against about 1760\,ms for 1c, i.e.\ 3.7--19$\times$ faster. In 1c
+        one reader thread does all the file reading with \code{fgets} and
+        hands the text over; the reader is the bottleneck, so 1c stops getting
+        faster already at \textbf{1 worker} (2 workers: 1.01$\times$; 64
+        workers: slower, 2269\,ms, from lock contention).
+  \item \textbf{Batches of one line / unbounded queue.} Measured with 8 workers:
+        batch = 1 line takes 99.4\,s instead of 1.9\,s (52$\times$ slower)
+        because every line costs a \code{malloc}, a lock/unlock and a
+        condition-variable signal, more than parsing the line. Batch = 1
+        with an unbounded queue: 57\,s, and the queue grew to 71\,624 pending
+        items (9\,MB) because the reader outran the workers. With 10\,000-line
+        batches the unbounded queue changed nothing (1.9\,s, never more than 1
+        batch). In general an unbounded queue lets memory grow without limit
+        whenever the producer is faster than the consumers; the bound makes
+        the reader wait instead.
+\end{enumerate}
+
+\section{Task 2: Many Files on Slow Storage}
+
+The 8 files (6\,250\,000 numbers, about 46\,MB each) are read from the USB
+drive; one thread reads a whole file with one \code{read} into one byte buffer,
+parses it, and the files are shared round-robin between the threads. Before every run the drive was ejected,
+unplugged and plugged back in (Spotlight indexing off). One run per configuration.
+
+\begin{table}[H]
+  \centering
+  \caption{Task 2: USB drive (fill in after running \code{run\_task2.sh}) and internal SSD reference}
+  \begin{tabular}{@{}rrrrrrr@{}}
+    \toprule
+    & \multicolumn{3}{c}{USB drive} & \multicolumn{3}{c}{Internal SSD (reference, \code{F\_NOCACHE})} \\
+    \cmidrule(lr){2-4}\cmidrule(lr){5-7}
+    Threads & Time (ms) & Speed-up & Peak (MB) & Time (ms) & Speed-up & Peak (MB) \\
+    \midrule
+    1 & \fillme{ } & 1.00 & \fillme{ } & 534 & 1.00 & 45.7 \\
+    2 & \fillme{ } & \fillme{ } & \fillme{ } & 305 & 1.75 & 89.8 \\
+    4 & \fillme{ } & \fillme{ } & \fillme{ } & 232 & 2.30 & 177.9 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\img{task2_usb.png}{Task 2 on the USB drive (place the generated chart here)}
+
+\subsection{Answers}
+\begin{enumerate}
+  \item \textbf{Task 2 on 1 thread vs.\ Task 1a on 1 thread.} Task 1a parses
+        the same 50\,M numbers in 471\,ms from the internal disk (data in cache). On the USB
+        drive the same work takes \fillme{T$_{USB}$\,ms} (\fillme{x}$\times$ longer). The parsing
+        work is identical, so the extra time is spent waiting for the drive: the
+        work is \textbf{I/O-bound} on USB, while Task 1a is CPU-bound.
+  \item \textbf{Do more threads help on USB?} \fillme{No/barely: state the measured
+        speed-up}. The USB drive is a single device with a fixed transfer rate
+        (about 370\,MB of data at the drive's speed); more threads only
+        queue more requests on the same bus. Lecture 1's benefit applies when the
+        waiting is on a resource that can serve many requests at once (e.g.\ many
+        network servers); here the one shared resource is already saturated by
+        one thread, and only the short parsing time can overlap.
+\end{enumerate}
+
+\section{Conclusion}
+
+\begin{itemize}
+  \item \textbf{CPU-bound:} Task 1a and Task 1b (version 3). Time falls as threads are
+        added until the 8 logical processors are used (4$\times$ at 8, then
+        flat); on the in-memory array the work scales with cores.
+  \item \textbf{Bound by one thread / synchronisation:} Task 1c is limited by
+        the single reader (no gain beyond 1 worker); Task 1b version 2 is
+        limited by the lock (100$\times$ slower than per-thread counters).
+  \item \textbf{I/O-bound:} Task 2 on the USB drive \fillme{(confirm with your
+        numbers)}: time is dominated by reading from the drive, and added
+        threads do not help.
+  \item \textbf{How I know:} CPU-bound work speeds up with threads up to the
+        core count and its time is the same whatever the storage; I/O-bound
+        work takes much longer than the same parsing from fast storage and does not
+        speed up with threads; unsynchronised counters give wrong totals.
+\end{itemize}
+
+\section{Answers to the Control Questions}
+
+\begin{enumerate}
+  \item \textbf{Physical core vs.\ logical processor.} A physical core is a real
+        execution unit; a logical processor is a hardware thread the OS can
+        schedule. With hyper-threading one core gives 2 logical processors that
+        share its units. This machine has no SMT (8 cores = 8 logical), and the chart
+        shows it: the speed-up stops near 8 threads.
+  \item \textbf{Boundary between two parts.} Each part starts at the first
+        line start at or after its byte offset (if the byte before the offset is
+        \code{\textbackslash n}, the offset itself); the end of one part is
+        computed by the same function as the start of the next, so they are the
+        same position. No line is shared or lost, and all totals sum to 50\,000\,000.
+  \item \textbf{How unsynchronised counters lose updates.} \code{counter++} is
+        three steps: load, add 1, store. Thread A loads 100; thread B loads 100;
+        A stores 101; B stores 101. Two increments, one counted. This happened
+        for about 75\% of the increments (12\,M instead of 50\,M).
+  \item \textbf{Per-thread counters vs.\ lock.} With a lock only one thread
+        increments at a time and the others wait (and the cache line of the
+        counter moves between cores). Per-thread counters share nothing, so
+        all threads run fully in parallel and are merged once at the end:
+        11\,ms vs.\ 1080\,ms.
+  \item \textbf{I/O-bound.} The program spends its time waiting for a device, not
+        computing. For a USB drive the wait is for its limited transfer speed, a
+        single shared resource, so more threads do not make it faster. For a
+        server waiting on the network the wait is for remote replies; many
+        requests can be in flight at once, so the threads overlap their waits
+        and concurrency helps.
+  \item \textbf{Equal parts in advance vs.\ a queue.} Equal parts (1a) have no
+        queue or locking overhead, and are best when all parts cost the same.
+        A queue (1c) balances the load automatically when the items cost
+        different amounts or arrive over time (a producer), at the price of
+        synchronisation per item (batches reduce it).
+\end{enumerate}
+
+\appendix
+\section{Build and Run}
+
+\begin{lstlisting}[language=bash]
+cd lab1 && make                                  # builds ./lab1
+mkdir -p data/parts
+./lab1 gen data/numbers.txt                      # 50 000 000 numbers
+./lab1 split data/numbers.txt data/parts 8       # numbers_1..8.txt
+./lab1 1a data/numbers.txt 8                     # Task 1a, 8 threads
+./lab1 1b data/numbers.txt unsync|mutex|local    # Task 1b
+./lab1 1c data/numbers.txt 8 10000 100           # Task 1c: workers, batch, queue cap
+./run_benchmarks.sh                              # all of Task 1 -> results/
+./run_task2.sh /Volumes/USB_NAME                 # Task 2 (asks to replug the drive)
+python3 plot.py                                  # charts -> images/
+\end{lstlisting}
+
+\end{document}

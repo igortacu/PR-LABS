@@ -1,0 +1,14 @@
+RESULT task=1c variant=producer-consumer threads=1 time_ms=6591.2 peak_mb=35.9 neg=24996683 pos=25003295 zero=22 total=50000000 batch=10000 qcap=100 maxq=33 read_lines=50000000
+RESULT task=1c variant=producer-consumer threads=1 time_ms=6538.5 peak_mb=34.2 neg=24996683 pos=25003295 zero=22 total=50000000 batch=10000 qcap=100 maxq=33 read_lines=50000000
+RESULT task=1c variant=producer-consumer threads=2 time_ms=6460.4 peak_mb=33.3 neg=24996683 pos=25003295 zero=22 total=50000000 batch=10000 qcap=100 maxq=32 read_lines=50000000
+RESULT task=1c variant=producer-consumer threads=2 time_ms=6507.5 peak_mb=28.1 neg=24996683 pos=25003295 zero=22 total=50000000 batch=10000 qcap=100 maxq=20 read_lines=50000000
+RESULT task=1c variant=producer-consumer threads=4 time_ms=6660.6 peak_mb=36.1 neg=24996683 pos=25003295 zero=22 total=50000000 batch=10000 qcap=100 maxq=34 read_lines=50000000
+RESULT task=1c variant=producer-consumer threads=4 time_ms=6591.0 peak_mb=41.8 neg=24996683 pos=25003295 zero=22 total=50000000 batch=10000 qcap=100 maxq=44 read_lines=50000000
+RESULT task=1c variant=producer-consumer threads=8 time_ms=6536.2 peak_mb=42.0 neg=24996683 pos=25003295 zero=22 total=50000000 batch=10000 qcap=100 maxq=41 read_lines=50000000
+RESULT task=1c variant=producer-consumer threads=8 time_ms=6721.3 peak_mb=34.2 neg=24996683 pos=25003295 zero=22 total=50000000 batch=10000 qcap=100 maxq=27 read_lines=50000000
+RESULT task=1c variant=producer-consumer threads=16 time_ms=6501.4 peak_mb=42.5 neg=24996683 pos=25003295 zero=22 total=50000000 batch=10000 qcap=100 maxq=35 read_lines=50000000
+RESULT task=1c variant=producer-consumer threads=16 time_ms=6804.4 peak_mb=41.8 neg=24996683 pos=25003295 zero=22 total=50000000 batch=10000 qcap=100 maxq=32 read_lines=50000000
+RESULT task=1c variant=producer-consumer threads=32 time_ms=6585.7 peak_mb=56.4 neg=24996683 pos=25003295 zero=22 total=50000000 batch=10000 qcap=100 maxq=42 read_lines=50000000
+RESULT task=1c variant=producer-consumer threads=32 time_ms=7630.8 peak_mb=39.2 neg=24996683 pos=25003295 zero=22 total=50000000 batch=10000 qcap=100 maxq=19 read_lines=50000000
+RESULT task=1c variant=producer-consumer threads=64 time_ms=6632.9 peak_mb=65.0 neg=24996683 pos=25003295 zero=22 total=50000000 batch=10000 qcap=100 maxq=24 read_lines=50000000
+RESULT task=1c variant=producer-consumer threads=64 time_ms=7213.9 peak_mb=67.4 neg=24996683 pos=25003295 zero=22 total=50000000 batch=10000 qcap=100 maxq=24 read_lines=50000000

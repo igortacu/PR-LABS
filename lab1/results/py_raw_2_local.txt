@@ -1,0 +1,3 @@
+RESULT task=2 variant=files threads=1 time_ms=7129.7 peak_mb=632.4 neg=24996683 pos=25003295 zero=22 total=50000000 
+RESULT task=2 variant=files threads=2 time_ms=6639.9 peak_mb=1053.4 neg=24996683 pos=25003295 zero=22 total=50000000 
+RESULT task=2 variant=files threads=4 time_ms=6821.0 peak_mb=1665.8 neg=24996683 pos=25003295 zero=22 total=50000000 
