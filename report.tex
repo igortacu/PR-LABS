@@ -87,7 +87,7 @@
     Logical processors & 8 (no hyper-threading) \\
     RAM & 16 GB \\
     Disk & internal NVMe SSD (Apple Fabric) \\
-    USB drive & \fillme{model, capacity, USB version} \\
+    USB drive & 32\,GB flash drive (exFAT), USB; measured about 27\,MB/s (USB~2.0 class) \\
     Operating system & macOS 27.0 (build 26A5425a) \\
     Language / runtime & C (Apple clang 17.0.0, \code{-O2}), POSIX threads \\
     \bottomrule
@@ -238,32 +238,31 @@ unplugged and plugged back in (Spotlight indexing off). One run per configuratio
 
 \begin{table}[H]
   \centering
-  \caption{Task 2: USB drive (fill in after running \code{run\_task2.sh}) and internal SSD reference}
+  \caption{Task 2: USB drive and internal SSD reference}
   \begin{tabular}{@{}rrrrrrr@{}}
     \toprule
     & \multicolumn{3}{c}{USB drive} & \multicolumn{3}{c}{Internal SSD (reference, \code{F\_NOCACHE})} \\
     \cmidrule(lr){2-4}\cmidrule(lr){5-7}
     Threads & Time (ms) & Speed-up & Peak (MB) & Time (ms) & Speed-up & Peak (MB) \\
     \midrule
-    1 & \fillme{ } & 1.00 & \fillme{ } & 534 & 1.00 & 45.7 \\
-    2 & \fillme{ } & \fillme{ } & \fillme{ } & 305 & 1.75 & 89.8 \\
-    4 & \fillme{ } & \fillme{ } & \fillme{ } & 232 & 2.30 & 177.9 \\
+    1 & 13686 & 1.00 & 45.7 & 534 & 1.00 & 45.7 \\
+    2 & 13066 & 1.05 & 89.8 & 305 & 1.75 & 89.8 \\
+    4 & 13226 & 1.03 & 177.4 & 232 & 2.30 & 177.9 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\img{task2_usb.png}{Task 2 on the USB drive (place the generated chart here)}
+\img{task2_usb.png}{Task 2 on the USB drive}
 
 \subsection{Answers}
 \begin{enumerate}
   \item \textbf{Task 2 on 1 thread vs.\ Task 1a on 1 thread.} Task 1a parses
         the same 50\,M numbers in 471\,ms from the internal disk (data in cache). On the USB
-        drive the same work takes \fillme{T$_{USB}$\,ms} (\fillme{x}$\times$ longer). The parsing
+        drive the same work takes 13\,686\,ms (29$\times$ longer; 26$\times$ longer than the 534\,ms from the internal SSD without cache). The parsing
         work is identical, so the extra time is spent waiting for the drive: the
         work is \textbf{I/O-bound} on USB, while Task 1a is CPU-bound.
-  \item \textbf{Do more threads help on USB?} \fillme{No/barely: state the measured
-        speed-up}. The USB drive is a single device with a fixed transfer rate
-        (about 370\,MB of data at the drive's speed); more threads only
+  \item \textbf{Do more threads help on USB?} No. 2 threads give 1.05$\times$ and 4 threads 1.03$\times$ (13.1\,s and 13.2\,s against 13.7\,s), which is within noise. The USB drive is a single device with a fixed transfer rate
+        (about 370\,MB at roughly 27\,MB/s); more threads only
         queue more requests on the same bus. Lecture 1's benefit applies when the
         waiting is on a resource that can serve many requests at once (e.g.\ many
         network servers); here the one shared resource is already saturated by
@@ -279,8 +278,7 @@ unplugged and plugged back in (Spotlight indexing off). One run per configuratio
   \item \textbf{Bound by one thread / synchronisation:} Task 1c is limited by
         the single reader (no gain beyond 1 worker); Task 1b version 2 is
         limited by the lock (100$\times$ slower than per-thread counters).
-  \item \textbf{I/O-bound:} Task 2 on the USB drive \fillme{(confirm with your
-        numbers)}: time is dominated by reading from the drive, and added
+  \item \textbf{I/O-bound:} Task 2 on the USB drive (13.7\,s on one thread, 13.1--13.2\,s on 2 and 4): time is dominated by reading from the drive, and added
         threads do not help.
   \item \textbf{How I know:} CPU-bound work speeds up with threads up to the
         core count and its time is the same whatever the storage; I/O-bound
