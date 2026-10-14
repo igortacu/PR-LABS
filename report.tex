@@ -286,6 +286,14 @@ unplugged and plugged back in (Spotlight indexing off). One run per configuratio
         speed up with threads; unsynchronised counters give wrong totals.
 \end{itemize}
 
+\textbf{Internal SSD vs.\ USB drive.} The same counting work behaves differently depending on where
+the data comes from. From the internal SSD the data arrives fast, so the time is spent counting;
+that work is split between cores, so more threads make it faster (534\,ms down to 232\,ms). The
+USB drive delivers only about 27\,MB/s, so the program mostly waits: reading 370\,MB takes about
+13\,s whatever the number of threads, while the counting itself needs about half a second. All
+threads wait for the same drive, so adding threads does not make it deliver data faster.
+Threads speed up work that can be divided (CPU cores), not a single slow device.
+
 \section{Answers to the Control Questions}
 
 \begin{enumerate}
