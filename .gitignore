@@ -6,3 +6,4 @@ lab1/results/run.log
 *.out
 *.toc
 .idea/
+lab2/out/
