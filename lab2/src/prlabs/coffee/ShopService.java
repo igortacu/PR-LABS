@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.LongConsumer;
 
-/** Implement this interface in the shop-logic part of the project. */
+/** Contract between the TCP server and its thread-safe shop implementation. */
 public interface ShopService {
     /** Return a stable copy, never the mutable stock map. */
     Map<Product, Integer> stockSnapshot();

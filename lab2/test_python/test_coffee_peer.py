@@ -119,6 +119,8 @@ class PythonPeerTest(unittest.TestCase):
         self.assertIn("[TRACE] SEND ROLE CLIENT", stderr.getvalue())
         self.assertIn("[TRACE] RECV BYE", stderr.getvalue())
         self.assertIn("[TRACE] CLOSE", stderr.getvalue())
+        self.assertNotIn("RECV PING", stderr.getvalue())
+        self.assertNotIn("SEND PONG", stderr.getvalue())
 
 
 if __name__ == "__main__":

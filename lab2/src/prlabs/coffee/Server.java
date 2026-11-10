@@ -96,6 +96,7 @@ public final class Server {
         }
 
         private void handle(String line) throws IOException {
+            if (closed) return;
             if (line.chars().anyMatch(Character::isISOControl)) {
                 throw new IllegalArgumentException("Control character in message");
             }
@@ -114,10 +115,10 @@ public final class Server {
                 } else if (line.equals("ROLE PROVIDER")) {
                     synchronized (providerLock) {
                         if (provider != null) throw new IllegalArgumentException("Provider already connected");
+                        channel.send("OK PROVIDER");
                         provider = this;
                         isProvider = true;
                     }
-                    channel.send("OK PROVIDER");
                     alertProvider();
                 } else {
                     throw new IllegalArgumentException("Identify with ROLE CLIENT or ROLE PROVIDER");
@@ -130,6 +131,7 @@ public final class Server {
                 if (!client) throw new IllegalArgumentException("Only clients can order");
                 Map<Product, Integer> items = Protocol.parseItems(line.substring(6));
                 synchronized (orderReplyLock) {
+                    if (closed) return;
                     ShopService.OrderResult result = shop.placeOrder(id, items, orderId -> {
                         synchronized (orderReplyLock) {
                             log("Order ready #" + orderId + " " + endpoint);
@@ -200,29 +202,32 @@ public final class Server {
             }
         }
 
-        private synchronized void disconnect() {
-            if (closed && !client && !isProvider) return;
-            closed = true;
-            if (isProvider) {
-                synchronized (providerLock) {
-                    if (provider == this) provider = null;
+        private void disconnect() {
+            synchronized (orderReplyLock) {
+                if (closed && !client && !isProvider) return;
+                closed = true;
+                if (isProvider) {
+                    synchronized (providerLock) {
+                        if (provider == this) provider = null;
+                    }
+                    isProvider = false;
                 }
-                isProvider = false;
-            }
-            if (client) {
-                client = false;
-                shop.cancelClient(id);
+                if (client) {
+                    client = false;
+                    shop.cancelClient(id);
+                }
             }
         }
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) {
-            System.err.println("Usage: Server <port> <ShopService implementation class>");
+        if (args.length < 1 || args.length > 2) {
+            System.err.println("Usage: Server <port> [ShopService implementation class]");
             System.exit(2);
         }
         int port = Integer.parseInt(args[0]);
-        ShopService shop = (ShopService) Class.forName(args[1]).getDeclaredConstructor().newInstance();
+        ShopService shop = args.length == 1 ? new InMemoryShop()
+                : (ShopService) Class.forName(args[1]).getDeclaredConstructor().newInstance();
         new Server(shop).serve(port);
     }
 }

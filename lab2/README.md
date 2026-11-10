@@ -1,99 +1,95 @@
 # Lab 2: Coffee shop over TCP
 
-The server and shop contract are written in Java, while the interactive client
-and provider are also implemented in Python for the two-language bonus. The
-shop logic belongs in a Java class that implements `prlabs.coffee.ShopService`;
-see that interface for the exact contract. No external libraries or network
-frameworks are used.
+The server and shop logic are written in Java 17. The interactive client and
+provider are written in Python 3.10 or newer. Both sides use the language's
+plain socket API and a shared text protocol, with no network framework or
+third-party dependency.
 
-## Build
+## Build and run on two computers
 
-Use Java 17 or newer, from the repository root:
+On computer A, from the repository root:
 
 ```sh
 mkdir -p lab2/out
 javac --release 17 -d lab2/out $(find lab2/src -name '*.java')
+java -cp lab2/out prlabs.coffee.Server 5000
 ```
 
-To check the Java socket layer, the Python socket layer, and their compatibility:
-
-```sh
-javac --release 17 -d lab2/out $(find lab2/src lab2/test -name '*.java')
-java -cp lab2/out prlabs.coffee.NetworkSmokeTest
-python3 -m unittest discover -s lab2/test_python -v
-java -cp lab2/out prlabs.coffee.PythonInteropSmokeTest
-```
-
-After adding your `ShopService` implementation, start the server on computer A:
-
-```sh
-java -cp lab2/out prlabs.coffee.Server 5000 prlabs.coffee.YourShopService
-```
-
-Start the programs on computer B, replacing `192.168.1.10` with computer A's
-local IP address:
+On computer B, replace `192.168.1.10` with computer A's LAN IP address:
 
 ```sh
 python3 lab2/python/coffee_peer.py client 192.168.1.10 5000
 python3 lab2/python/coffee_peer.py provider 192.168.1.10 5000
 ```
 
-Computer A needs Java 17 or newer and computer B needs Python 3.10 or newer.
-Both need a copy of the same repository and must be on a network that permits
-TCP connections to the chosen port. The server binds to all local interfaces.
-`localhost` connects only to the same computer.
+Both computers need a copy of the repository and must be able to connect over
+TCP port `5000`. The server listens on all local interfaces. `localhost` works
+only when the client and server run on the same computer. The Python program
+prints `[TRACE]` connection and application-message events to standard error.
+Heartbeat `PING`/`PONG` traffic stays hidden so it does not interrupt typing.
+Use `--no-trace` to hide all trace events.
 
-The Python program prints connection events and every wire message to standard
-error as `[TRACE] CONNECT`, `SEND`, `RECV`, and `CLOSE` lines. This makes the TCP
-exchange visible during the defense while keeping protocol responses readable
-on standard output. Add `--no-trace` to disable these lines. The Python program
-is the project's client/provider implementation; the server remains in Java.
+## Commands and wire protocol
 
-## Console commands and wire protocol
+The client accepts `menu`, `order coffee=1 tea=2`, and `quit`. The provider
+accepts `menu`, `deliver coffee=20 croissant=10`, and `quit`. The program
+uppercases only the command word; the server validates all input.
 
-Enter `menu`, `order coffee=1 tea=2`, or `quit` in the client. Enter `menu`,
-`deliver coffee=20 croissant=10`, or `quit` in the provider. The console
-normalizes only the command word to uppercase; the server validates all input.
+Each wire message is a strict UTF-8 line ending with the byte `\n`, with at
+most 4096 bytes before it. TCP can split one message across several receives
+or combine several messages in one receive, so both implementations buffer
+bytes until a complete line is available.
 
-Each wire message is one strict UTF-8 line ending with LF, with a maximum of
-4096 bytes before LF. The first message is `ROLE CLIENT` or `ROLE PROVIDER`.
-The server sends `OK CLIENT` or `OK PROVIDER`. There can be one provider at a
-time. Later commands are `MENU`, `ORDER product=quantity ...`,
-`DELIVER product=quantity ...`, and `QUIT`. Product names are lowercase.
+The first message is `ROLE CLIENT\n` or `ROLE PROVIDER\n`. The server replies
+`OK CLIENT` or `OK PROVIDER`. There can be only one provider connection at a
+time. Later messages are:
 
-Responses include `MENU coffee=... tea=... croissant=...`,
-`ACCEPTED <order-id> <preparation-seconds>`, `REFUSED` followed by available
-stock, `READY <order-id>`, `DELIVERED` followed by delivered items,
-`ALERT product=quantity`, `ERROR <reason>`, and `BYE`. The connection also
-exchanges `PING` and `PONG` to detect silent network failures. These messages
-are hidden by the console program.
+| Request | Response |
+| --- | --- |
+| `MENU` | `MENU coffee=12 tea=20 croissant=8` |
+| `ORDER coffee=1 tea=2` | `ACCEPTED 7 10` immediately, then `READY 7` later |
+| Order exceeding stock | `REFUSED coffee=0 tea=20 croissant=8` |
+| `DELIVER coffee=20 croissant=10` from provider | `DELIVERED coffee=20 croissant=10` |
+| Invalid input | `ERROR` followed by the reason |
+| `QUIT` | `BYE` |
 
-The TCP reader preserves partial lines across socket timeouts, handles several
-lines in one receive, rejects malformed UTF-8, and discards oversized lines.
-Sends from a worker and a connection thread are serialized per socket.
+The server sends `ALERT coffee=4` to the provider when stock falls below five,
+or when a provider connects while stock is already low. It sends `PING` to
+check connections; the Python receiver replies `PONG` while keyboard input
+remains available.
 
-## Shop logic contract
+## Server behavior
 
-Your implementation should initialize each product with a random stock from
-10 to 50 and start one worker per `Runtime.getRuntime().availableProcessors()`.
-It should use a FIFO queue. `placeOrder` must check and reserve the entire
-order atomically, returning `Accepted` or `Refused` with a stock snapshot.
-Workers prepare an entire order, then call `whenReady.accept(orderId)` once.
-`cancelClient` must stop any running preparation, remove queued orders, and
-refund each canceled order exactly once. `deliver` adds all quantities
-atomically. Call the stock-change listener after each stock mutation, outside
-your stock lock. `stockSnapshot` and `Refused.available` must be stable copies.
+`InMemoryShop` starts with a random quantity from 10 through 50 of each
+product. Coffee takes four seconds, tea three, and croissants two. The time
+for an order is the sum of its item times. The server starts one preparation
+worker per logical processor. Client connection threads atomically check and
+reserve stock, then add accepted orders to a thread-safe FIFO queue. Each
+worker prepares one whole order. New orders can be accepted while workers
+are busy.
 
-The server guarantees an `ACCEPTED` response is sent before a worker's `READY`
-notification for that order. It calls `cancelClient` when a client disconnects,
-including after a heartbeat timeout. The shop implementation must make its
-own methods thread-safe because several connection threads call them.
+`stateLock` protects stock, reserved quantities, order states, client-to-order
+records, and the next order ID. The blocking queue protects its own
+operations. No stock lock is held during preparation. On client disconnect,
+queued and preparing orders are canceled and refunded once; a per-order
+latch wakes a preparing worker. A replacement order waits its full time.
+Provider deliveries are atomic. The server logs connections, accepted,
+refused and ready orders, deliveries, and errors with the remote endpoint.
 
-## Working on two computers
+`LineChannel` handles split and combined TCP messages, malformed UTF-8,
+oversized messages, and serialized writes to a socket. The server sends
+`ACCEPTED` before `READY`, even if a worker finishes quickly.
 
-Use the same Git repository. One person owns the shop implementation; the
-other owns the protocol and socket programs. Agree on changes to
-`ShopService` before changing it. Each person works on a separate branch,
-pushes small changes, and reviews the other's pull request. After merging,
-both pull and run the same commit. At the defense, explain both sides of the
-contract, not only the files you wrote.
+## Tests
+
+```sh
+javac --release 17 -d lab2/out $(find lab2/src lab2/test -name '*.java')
+java -cp lab2/out prlabs.coffee.InMemoryShopTest
+java -cp lab2/out prlabs.coffee.NetworkSmokeTest
+java -cp lab2/out prlabs.coffee.RealServerIntegrationTest
+python3 -m unittest discover -s lab2/test_python -v
+java -cp lab2/out prlabs.coffee.PythonInteropSmokeTest
+```
+
+The Java shop tests use a shorter clock and fixed stock. The production
+constructor uses real seconds and random stock.

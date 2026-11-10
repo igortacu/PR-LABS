@@ -111,12 +111,14 @@ def run_peer(
 
     connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     connection.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    connection.settimeout(5)
     try:
         connection.connect((host, port))
     except OSError as error:
         print(f"Could not connect to {endpoint}: {error}", file=error_stream, flush=True)
         connection.close()
         return 1
+    connection.settimeout(None)
 
     write_trace(f"CONNECT {endpoint}")
     channel = LineChannel(connection)
@@ -124,7 +126,8 @@ def run_peer(
 
     def send(message: str) -> None:
         channel.send(message)
-        write_trace(f"SEND {message}")
+        if message != "PONG":
+            write_trace(f"SEND {message}")
 
     def read_keyboard() -> None:
         try:
@@ -166,7 +169,8 @@ def run_peer(
                 print("Server disconnected.", file=output_stream, flush=True)
                 break
 
-            write_trace(f"RECV {message}")
+            if message not in {"PING", "PONG"}:
+                write_trace(f"RECV {message}")
             if message == "PING":
                 send("PONG")
             elif message != "PONG":
