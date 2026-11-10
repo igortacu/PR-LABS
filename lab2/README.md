@@ -1,8 +1,10 @@
 # Lab 2: Coffee shop over TCP
 
-This is the networking half of the Java implementation. The shop logic belongs
-in a class that implements `prlabs.coffee.ShopService`; see that interface for
-the exact contract. No external libraries or network frameworks are used.
+The server and shop contract are written in Java, while the interactive client
+and provider are also implemented in Python for the two-language bonus. The
+shop logic belongs in a Java class that implements `prlabs.coffee.ShopService`;
+see that interface for the exact contract. No external libraries or network
+frameworks are used.
 
 ## Build
 
@@ -13,11 +15,13 @@ mkdir -p lab2/out
 javac --release 17 -d lab2/out $(find lab2/src -name '*.java')
 ```
 
-To check the socket layer with a fake shop implementation:
+To check the Java socket layer, the Python socket layer, and their compatibility:
 
 ```sh
 javac --release 17 -d lab2/out $(find lab2/src lab2/test -name '*.java')
 java -cp lab2/out prlabs.coffee.NetworkSmokeTest
+python3 -m unittest discover -s lab2/test_python -v
+java -cp lab2/out prlabs.coffee.PythonInteropSmokeTest
 ```
 
 After adding your `ShopService` implementation, start the server on computer A:
@@ -30,13 +34,20 @@ Start the programs on computer B, replacing `192.168.1.10` with computer A's
 local IP address:
 
 ```sh
-java -cp lab2/out prlabs.coffee.ConsolePeer client 192.168.1.10 5000
-java -cp lab2/out prlabs.coffee.ConsolePeer provider 192.168.1.10 5000
+python3 lab2/python/coffee_peer.py client 192.168.1.10 5000
+python3 lab2/python/coffee_peer.py provider 192.168.1.10 5000
 ```
 
-Both computers need Java and a copy of the same repository. They must be on a
-network that permits TCP connections to the chosen port. The server binds to
-all local interfaces. `localhost` connects only to the same computer.
+Computer A needs Java 17 or newer and computer B needs Python 3.10 or newer.
+Both need a copy of the same repository and must be on a network that permits
+TCP connections to the chosen port. The server binds to all local interfaces.
+`localhost` connects only to the same computer.
+
+The Python program prints connection events and every wire message to standard
+error as `[TRACE] CONNECT`, `SEND`, `RECV`, and `CLOSE` lines. This makes the TCP
+exchange visible during the defense while keeping protocol responses readable
+on standard output. Add `--no-trace` to disable these lines. The Python program
+is the project's client/provider implementation; the server remains in Java.
 
 ## Console commands and wire protocol
 

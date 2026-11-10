@@ -7,3 +7,5 @@ lab1/results/run.log
 *.toc
 .idea/
 lab2/out/
+__pycache__/
+*.pyc
