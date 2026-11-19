@@ -23,7 +23,12 @@ public interface ShopService {
 
     sealed interface OrderResult permits Accepted, Refused {}
 
-    record Accepted(long orderId, long preparationSeconds) implements OrderResult {}
+    /** queuePosition is 0 when a worker slot is available, otherwise 1-based. */
+    record Accepted(long orderId, long preparationSeconds, long queuePosition) implements OrderResult {
+        public Accepted(long orderId, long preparationSeconds) {
+            this(orderId, preparationSeconds, 0);
+        }
+    }
 
     /** A stable stock snapshot at the instant the order was refused. */
     record Refused(Map<Product, Integer> available) implements OrderResult {}

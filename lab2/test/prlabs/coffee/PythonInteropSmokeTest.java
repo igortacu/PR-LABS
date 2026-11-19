@@ -1,6 +1,8 @@
 package prlabs.coffee;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -9,6 +11,7 @@ import java.nio.file.Path;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongConsumer;
 
@@ -43,9 +46,28 @@ public final class PythonInteropSmokeTest {
                 python, pythonClient.toString(), "client", "127.0.0.1", Integer.toString(port))
                 .redirectErrorStream(true)
                 .start();
+        StringBuffer capturedOutput = new StringBuffer();
+        CountDownLatch readySeen = new CountDownLatch(1);
+        Thread outputReader = new Thread(() -> {
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    capturedOutput.append(line).append('\n');
+                    if (line.equals("READY 1")) readySeen.countDown();
+                }
+            } catch (IOException e) {
+                capturedOutput.append("Output read failed: ").append(e).append('\n');
+            }
+        }, "python-output-reader");
+        outputReader.start();
         process.getOutputStream().write("menu\norder coffee=1\n".getBytes(StandardCharsets.UTF_8));
         process.getOutputStream().flush();
-        Thread.sleep(200);
+        if (!readySeen.await(5, TimeUnit.SECONDS)) {
+            process.destroyForcibly();
+            outputReader.join();
+            throw new AssertionError("Python client did not receive READY:\n" + capturedOutput);
+        }
         process.getOutputStream().write("quit\n".getBytes(StandardCharsets.UTF_8));
         process.getOutputStream().close();
 
@@ -53,7 +75,8 @@ public final class PythonInteropSmokeTest {
             process.destroyForcibly();
             throw new AssertionError("Python client did not exit");
         }
-        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        outputReader.join();
+        String output = capturedOutput.toString();
         if (process.exitValue() != 0) {
             throw new AssertionError("Python client failed:\n" + output);
         }

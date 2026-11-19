@@ -126,8 +126,7 @@ def run_peer(
 
     def send(message: str) -> None:
         channel.send(message)
-        if message != "PONG":
-            write_trace(f"SEND {message}")
+        write_trace(f"SEND {message}")
 
     def read_keyboard() -> None:
         try:
@@ -169,14 +168,10 @@ def run_peer(
                 print("Server disconnected.", file=output_stream, flush=True)
                 break
 
-            if message not in {"PING", "PONG"}:
-                write_trace(f"RECV {message}")
-            if message == "PING":
-                send("PONG")
-            elif message != "PONG":
-                print(message, file=output_stream, flush=True)
-                if message == "BYE":
-                    break
+            write_trace(f"RECV {message}")
+            print(message, file=output_stream, flush=True)
+            if message == "BYE":
+                break
     except (ConnectionError, OSError) as error:
         print(f"Connection lost: {error}", file=error_stream, flush=True)
         exit_code = 1

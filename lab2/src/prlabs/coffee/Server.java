@@ -3,15 +3,12 @@ package prlabs.coffee;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketTimeoutException;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.UUID;
 
 /** TCP front end. Shop stock and worker behavior live in ShopService. */
 public final class Server {
-    private static final long PING_INTERVAL_NANOS = 5_000_000_000L;
-    private static final long PONG_TIMEOUT_NANOS = 15_000_000_000L;
     private final ShopService shop;
     private final Object providerLock = new Object();
     private volatile Session provider;
@@ -24,6 +21,9 @@ public final class Server {
     public void serve(int port) throws IOException {
         try (ServerSocket listener = new ServerSocket(port)) {
             log("Listening on port " + port);
+            if (shop instanceof InMemoryShop inMemoryShop) {
+                log("Preparation workers: " + inMemoryShop.workerCount());
+            }
             while (true) {
                 Socket socket = listener.accept();
                 Thread thread = new Thread(() -> serveSession(socket), "connection-" + socket.getPort());
@@ -38,7 +38,6 @@ public final class Server {
         log("Connection " + endpoint);
         try (socket) {
             socket.setKeepAlive(true);
-            socket.setSoTimeout(1000);
             session = new Session(socket, new LineChannel(socket));
             session.run();
         } catch (IOException e) {
@@ -69,8 +68,6 @@ public final class Server {
         private final EnumSet<Product> alertedProducts = EnumSet.noneOf(Product.class);
         private boolean client;
         private boolean isProvider;
-        private long lastPing = System.nanoTime();
-        private long pingSentAt;
 
         Session(Socket socket, LineChannel channel) {
             this.socket = socket;
@@ -84,14 +81,11 @@ public final class Server {
                     String line = channel.readLine();
                     if (line == null) return;
                     handle(line);
-                } catch (SocketTimeoutException ignored) {
-                    // Wake periodically so a silent connection can be checked.
                 } catch (LineChannel.InvalidFrameException e) {
                     error(e.getMessage());
                 } catch (IllegalArgumentException e) {
                     error(e.getMessage());
                 }
-                if (!closed) heartbeat();
             }
         }
 
@@ -99,14 +93,6 @@ public final class Server {
             if (closed) return;
             if (line.chars().anyMatch(Character::isISOControl)) {
                 throw new IllegalArgumentException("Control character in message");
-            }
-            if (line.equals("PONG")) {
-                pingSentAt = 0;
-                return;
-            }
-            if (line.equals("PING")) {
-                channel.send("PONG");
-                return;
             }
             if (!client && !isProvider) {
                 if (line.equals("ROLE CLIENT")) {
@@ -140,6 +126,10 @@ public final class Server {
                     });
                     if (result instanceof ShopService.Accepted accepted) {
                         log("Order accepted #" + accepted.orderId() + " " + endpoint);
+                        if (accepted.queuePosition() > 0) {
+                            log("Order queued #" + accepted.orderId() + " position="
+                                    + accepted.queuePosition() + " " + endpoint);
+                        }
                         channel.send("ACCEPTED " + accepted.orderId() + " " + accepted.preparationSeconds());
                     } else if (result instanceof ShopService.Refused refused) {
                         log("Order refused " + endpoint);
@@ -157,18 +147,6 @@ public final class Server {
                 closed = true;
             } else {
                 throw new IllegalArgumentException("Unknown or malformed command");
-            }
-        }
-
-        private void heartbeat() throws IOException {
-            long now = System.nanoTime();
-            if (pingSentAt != 0 && now - pingSentAt > PONG_TIMEOUT_NANOS) {
-                throw new IOException("Heartbeat timed out");
-            }
-            if (pingSentAt == 0 && now - lastPing >= PING_INTERVAL_NANOS) {
-                channel.send("PING");
-                pingSentAt = now;
-                lastPing = now;
             }
         }
 

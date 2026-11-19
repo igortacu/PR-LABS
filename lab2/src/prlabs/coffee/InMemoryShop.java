@@ -23,8 +23,10 @@ public final class InMemoryShop implements ShopService {
     private final EnumMap<Product, Integer> reserved = new EnumMap<>(Product.class);
     private final BlockingQueue<Order> waitingOrders = new LinkedBlockingQueue<>();
     private final Map<UUID, Set<Order>> ordersByClient = new HashMap<>();
+    private final int workerCount;
     private final long millisecondsPerSecond;
     private long nextOrderId = 1; // Guarded by stateLock.
+    private long unfinishedOrders; // Guarded by stateLock; includes preparing and waiting orders.
     private volatile Runnable stockChangeListener = () -> {};
 
     public InMemoryShop() {
@@ -44,6 +46,7 @@ public final class InMemoryShop implements ShopService {
             stock.put(product, quantity);
             reserved.put(product, 0);
         }
+        this.workerCount = workerCount;
         this.millisecondsPerSecond = millisecondsPerSecond;
         for (int i = 0; i < workerCount; i++) {
             Thread worker = new Thread(this::work, "preparation-worker-" + (i + 1));
@@ -58,6 +61,10 @@ public final class InMemoryShop implements ShopService {
             amounts.put(product, ThreadLocalRandom.current().nextInt(10, 51));
         }
         return amounts;
+    }
+
+    public int workerCount() {
+        return workerCount;
     }
 
     @Override
@@ -90,6 +97,7 @@ public final class InMemoryShop implements ShopService {
             long delayMillis = Math.multiplyExact(seconds, millisecondsPerSecond);
             long orderId = nextOrderId;
             nextOrderId = Math.addExact(nextOrderId, 1);
+            long queuePosition = Math.max(0, unfinishedOrders - workerCount + 1);
             Order order = new Order(orderId, clientId, items, delayMillis, whenReady);
             for (Map.Entry<Product, Integer> item : items.entrySet()) {
                 stock.put(item.getKey(), stock.get(item.getKey()) - item.getValue());
@@ -97,7 +105,8 @@ public final class InMemoryShop implements ShopService {
             }
             ordersByClient.computeIfAbsent(clientId, ignored -> new HashSet<>()).add(order);
             waitingOrders.add(order);
-            result = new Accepted(orderId, seconds);
+            unfinishedOrders++;
+            result = new Accepted(orderId, seconds, queuePosition);
         } finally {
             stateLock.unlock();
         }
@@ -134,6 +143,7 @@ public final class InMemoryShop implements ShopService {
             for (Order order : orders) {
                 if (order.state == State.CANCELED || order.state == State.READY) continue;
                 order.state = State.CANCELED;
+                unfinishedOrders--;
                 waitingOrders.remove(order); // A worker may already have taken it.
                 for (Map.Entry<Product, Integer> item : order.items.entrySet()) {
                     stock.put(item.getKey(), stock.get(item.getKey()) + item.getValue());
@@ -182,6 +192,7 @@ public final class InMemoryShop implements ShopService {
             try {
                 if (order.state == State.PREPARING) {
                     order.state = State.READY;
+                    unfinishedOrders--;
                     for (Map.Entry<Product, Integer> item : order.items.entrySet()) {
                         reserved.put(item.getKey(), reserved.get(item.getKey()) - item.getValue());
                     }
@@ -207,6 +218,7 @@ public final class InMemoryShop implements ShopService {
         try {
             if (order.state == State.PREPARING) {
                 order.state = State.CANCELED;
+                unfinishedOrders--;
                 removeFromClient(order);
                 for (Map.Entry<Product, Integer> item : order.items.entrySet()) {
                     stock.put(item.getKey(), stock.get(item.getKey()) + item.getValue());

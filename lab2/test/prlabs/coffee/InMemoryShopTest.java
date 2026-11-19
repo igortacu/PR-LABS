@@ -61,7 +61,9 @@ public final class InMemoryShopTest {
                         completionOrder.add(id);
                         ready.countDown();
                     });
-            check(result instanceof ShopService.Accepted accepted && accepted.preparationSeconds() == 2,
+            check(result instanceof ShopService.Accepted accepted
+                            && accepted.preparationSeconds() == 2
+                            && accepted.queuePosition() == i,
                     "Croissant preparation time is wrong");
         }
         check(ready.await(3, TimeUnit.SECONDS), "Orders did not finish");
@@ -89,7 +91,10 @@ public final class InMemoryShopTest {
 
         CountDownLatch replacementReady = new CountDownLatch(1);
         long started = System.nanoTime();
-        shop.placeOrder(UUID.randomUUID(), Map.of(Product.COFFEE, 1), id -> replacementReady.countDown());
+        ShopService.OrderResult replacement = shop.placeOrder(
+                UUID.randomUUID(), Map.of(Product.COFFEE, 1), id -> replacementReady.countDown());
+        check(replacement instanceof ShopService.Accepted accepted && accepted.queuePosition() == 0,
+                "Canceled orders still occupied queue capacity");
         check(replacementReady.await(2, TimeUnit.SECONDS), "Worker did not start the replacement order");
         long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
         check(elapsedMillis >= 700, "Replacement order did not get its full preparation time");

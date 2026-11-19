@@ -26,7 +26,6 @@ Both computers need a copy of the repository and must be able to connect over
 TCP port `5000`. The server listens on all local interfaces. `localhost` works
 only when the client and server run on the same computer. The Python program
 prints `[TRACE]` connection and application-message events to standard error.
-Heartbeat `PING`/`PONG` traffic stays hidden so it does not interrupt typing.
 Use `--no-trace` to hide all trace events.
 
 ## Commands and wire protocol
@@ -54,9 +53,8 @@ time. Later messages are:
 | `QUIT` | `BYE` |
 
 The server sends `ALERT coffee=4` to the provider when stock falls below five,
-or when a provider connects while stock is already low. It sends `PING` to
-check connections; the Python receiver replies `PONG` while keyboard input
-remains available.
+or when a provider connects while stock is already low. Client and provider
+programs receive server messages while keyboard input remains available.
 
 ## Server behavior
 
@@ -68,6 +66,12 @@ reserve stock, then add accepted orders to a thread-safe FIFO queue. Each
 worker prepares one whole order. New orders can be accepted while workers
 are busy.
 
+At startup, the server logs its worker count. When all worker slots are already
+occupied, an accepted order also gets an `Order queued` log line with its
+position at acceptance. For example, with eight workers, the ninth concurrent
+order is logged at queue position 1. A refusal means insufficient stock, not a
+full worker pool.
+
 `stateLock` protects stock, reserved quantities, order states, client-to-order
 records, and the next order ID. The blocking queue protects its own
 operations. No stock lock is held during preparation. On client disconnect,
@@ -75,6 +79,9 @@ queued and preparing orders are canceled and refunded once; a per-order
 latch wakes a preparing worker. A replacement order waits its full time.
 Provider deliveries are atomic. The server logs connections, accepted,
 refused and ready orders, deliveries, and errors with the remote endpoint.
+Closed and reset connections are detected when the socket read fails or returns
+end-of-stream. Both sides enable TCP keepalive; a silent network loss may take
+longer to detect.
 
 `LineChannel` handles split and combined TCP messages, malformed UTF-8,
 oversized messages, and serialized writes to a socket. The server sends

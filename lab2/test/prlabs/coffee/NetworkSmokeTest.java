@@ -33,7 +33,7 @@ public final class NetworkSmokeTest {
             client.setSoTimeout(3000);
             LineChannel clientChannel = new LineChannel(client);
             client.getOutputStream().write("ROLE CL".getBytes(StandardCharsets.UTF_8));
-            Thread.sleep(1100); // Cross the server's one-second read timeout.
+            Thread.sleep(50); // The first message arrives in two TCP writes.
             client.getOutputStream().write("IENT\nMENU\nORDER coffee=1\n".getBytes(StandardCharsets.UTF_8));
             expect(clientChannel.readLine(), "OK CLIENT");
             expect(clientChannel.readLine(), "MENU coffee=4 tea=10 croissant=10");

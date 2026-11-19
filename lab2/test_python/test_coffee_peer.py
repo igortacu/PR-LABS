@@ -87,8 +87,6 @@ class PythonPeerTest(unittest.TestCase):
             with connection:
                 channel = LineChannel(connection)
                 received.append(channel.read_line())
-                connection.sendall(b"PING\n")
-                received.append(channel.read_line())
                 allow_commands.set()
                 connection.sendall(b"OK CLIENT\n")
                 received.append(channel.read_line())
@@ -112,15 +110,13 @@ class PythonPeerTest(unittest.TestCase):
         server.join()
 
         self.assertEqual(0, exit_code)
-        self.assertEqual(["ROLE CLIENT", "PONG", "MENU", "QUIT"], received)
+        self.assertEqual(["ROLE CLIENT", "MENU", "QUIT"], received)
         self.assertIn("OK CLIENT", stdout.getvalue())
         self.assertIn("MENU coffee=10 tea=11 croissant=12", stdout.getvalue())
         self.assertIn("[TRACE] CONNECT", stderr.getvalue())
         self.assertIn("[TRACE] SEND ROLE CLIENT", stderr.getvalue())
         self.assertIn("[TRACE] RECV BYE", stderr.getvalue())
         self.assertIn("[TRACE] CLOSE", stderr.getvalue())
-        self.assertNotIn("RECV PING", stderr.getvalue())
-        self.assertNotIn("SEND PONG", stderr.getvalue())
 
 
 if __name__ == "__main__":
