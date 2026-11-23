@@ -1,0 +1,4 @@
+{
+  "teacher-secret": {"name": "teacher", "topics": ["grades", "news"]},
+  "ana-secret": {"name": "Ana", "topics": ["news"]}
+}

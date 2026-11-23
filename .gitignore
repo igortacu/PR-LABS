@@ -9,3 +9,6 @@ lab1/results/run.log
 lab2/out/
 __pycache__/
 *.pyc
+lab4/data/
+lab4/tokens.json
+lab4/.venv/
