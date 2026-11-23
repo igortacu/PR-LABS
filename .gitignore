@@ -10,5 +10,5 @@ lab2/out/
 __pycache__/
 *.pyc
 lab4/data/
-lab4/tokens.json
-lab4/.venv/
+lab4/tokens.txt
+lab4/target/

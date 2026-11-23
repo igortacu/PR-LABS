@@ -1,0 +1,3 @@
+# token|publisher name|comma-separated allowed topics
+teacher-secret|teacher|grades,news
+ana-secret|Ana|news

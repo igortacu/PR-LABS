@@ -1,80 +1,74 @@
-# Lab 4: A message broker
+# Lab 4: A message broker in Java
 
-This implements both defenses: Part 1 with Python's standard-library HTTP server,
-and Part 2 with gRPC. Each transport has a broker, publisher, and subscriber
-console program. Both brokers use `broker_core.py` for durable topics, ordered
-background delivery, and token checks. Run **one broker at a time** against a
-given data file; two broker processes do not coordinate writes to that file.
+This project has two versions of the same broker: Part 1 uses Java's built-in
+`HttpServer`; Part 2 uses gRPC. There is no existing message broker or web
+framework. Both versions use `Broker.java`, which keeps messages, assigns IDs,
+saves them to disk, and delivers them through one queue per topic.
 
-## Setup
+## Build
 
-Use Python 3.10 or newer. From the repository root:
+Install Java 17 or newer and Maven. From the repository root:
 
 ```sh
-python3 -m venv lab4/.venv
-lab4/.venv/bin/python -m pip install -r lab4/requirements.txt
-lab4/.venv/bin/python -m grpc_tools.protoc -I lab4 --python_out=lab4 --grpc_python_out=lab4 lab4/broker.proto
-cp lab4/tokens.example.json lab4/tokens.json
+mvn -f lab4/pom.xml package
+cp lab4/tokens.example.txt lab4/tokens.txt
 ```
 
-Edit `lab4/tokens.json` to choose private tokens, publisher names, and their
-allowed topics. Do not commit that file. Generated `broker_pb2.py` and
-`broker_pb2_grpc.py` are included, so generation is needed only if you change
-the contract. HTTP programs need only the Python standard library.
+Edit `lab4/tokens.txt` if you want different tokens. Each line is
+`token|publisher-name|topic1,topic2`. The tokens file is ignored by Git.
+The `.proto` Java classes are generated during the Maven build.
 
 ## Part 1: HTTP
 
-On the broker computer:
+Run each command in a separate terminal from the repository root. Replace
+`BROKER_IP` with the broker computer's LAN IP address for other computers.
+Use `127.0.0.1` when all programs are on your computer.
 
 ```sh
-python3 lab4/broker_http.py --host 0.0.0.0 --port 8000
+mvn -q -f lab4/pom.xml exec:java -Dexec.mainClass=prlabs.broker.HttpBroker -Dexec.args='8000 lab4/data/http.json lab4/tokens.txt'
+mvn -q -f lab4/pom.xml exec:java -Dexec.mainClass=prlabs.broker.HttpSubscriber -Dexec.args='http://BROKER_IP:8000 grades'
+mvn -q -f lab4/pom.xml exec:java -Dexec.mainClass=prlabs.broker.HttpPublisher -Dexec.args='http://BROKER_IP:8000 grades teacher teacher-secret'
 ```
 
-On one or more computers, replace `BROKER_IP` with the broker computer's LAN
-address. Run two subscribers and two publishers in separate terminals:
+Type a line in the publisher terminal and press Enter. Start a second publisher
+and subscriber in two more terminals to demonstrate concurrency. The HTTP API is:
 
-```sh
-python3 lab4/subscriber_http.py http://BROKER_IP:8000 grades
-python3 lab4/publisher_http.py http://BROKER_IP:8000 grades teacher --token teacher-secret
-```
+| Request | Result |
+| --- | --- |
+| `POST /topics/{topic}/messages` | JSON `sender` and `body`; returns 202 and the full message |
+| `GET /topics/{topic}/stream` | open newline-delimited JSON stream |
+| `GET /topics` | topic names and stored message counts |
 
-Type a line and press Enter to publish it. The API returns JSON:
-
-- `POST /topics/{topic}/messages` with `{"sender":"teacher","body":"Hello"}`
-  and `Authorization: Bearer teacher-secret` returns 202 and the saved message.
-- `GET /topics/{topic}/stream` returns an open chunked NDJSON stream. Blank
-  heartbeat lines are sent every 10 seconds.
-- `GET /topics` returns `{"topics":[{"topic":"grades","size":1}]}`.
+Publishing requires the header `Authorization: Bearer token`. A missing or
+unknown token gets HTTP 401; a valid token for the wrong sender or topic gets
+HTTP 403. The stream sends a blank line every 10 seconds to notice disconnects.
 
 ## Part 2: gRPC
 
-Use a separate data file from HTTP if both are running:
+Stop the HTTP broker before starting this example, or use the separate data
+file shown below. gRPC has its own port and only the calls in `broker.proto`.
 
 ```sh
-lab4/.venv/bin/python lab4/broker_grpc.py --host 0.0.0.0 --port 50051 --data lab4/data/grpc.json
-lab4/.venv/bin/python lab4/subscriber_grpc.py BROKER_IP:50051 grades
-lab4/.venv/bin/python lab4/publisher_grpc.py BROKER_IP:50051 grades teacher --token teacher-secret
+mvn -q -f lab4/pom.xml exec:java -Dexec.mainClass=prlabs.broker.GrpcBroker -Dexec.args='50051 lab4/data/grpc.json lab4/tokens.txt'
+mvn -q -f lab4/pom.xml exec:java -Dexec.mainClass=prlabs.broker.GrpcSubscriber -Dexec.args='BROKER_IP:50051 grades'
+mvn -q -f lab4/pom.xml exec:java -Dexec.mainClass=prlabs.broker.GrpcPublisher -Dexec.args='BROKER_IP:50051 grades teacher teacher-secret'
 ```
 
-`broker.proto` defines `Publish`, streaming `Subscribe`, and `ListTopics`.
-gRPC metadata uses `authorization: Bearer token`. A missing or unknown token
-returns `UNAUTHENTICATED`; a valid token for the wrong sender or topic returns
-`PERMISSION_DENIED`. HTTP returns 401 with `WWW-Authenticate: Bearer` or 403.
+Missing and unknown tokens get `UNAUTHENTICATED`; tokens for another sender or
+topic get `PERMISSION_DENIED`. The gRPC subscriber receives a server stream.
 
-The broker keeps all messages in a JSON file. Every publish rewrites a temporary
-file, syncs it, and atomically replaces the old file before returning. IDs
-continue after a restart. Subscriptions receive new messages while connected;
-past messages remain on disk and count in `ListTopics` but are not replayed.
+## Restart and testing
 
-## Verify
+Stop and restart a broker with the same data file. Its messages and next IDs
+remain. Each publish writes a temporary file and atomically replaces the old
+one. Subscribers receive new messages while connected; saved messages are not
+replayed when they reconnect.
 
 ```sh
-lab4/.venv/bin/python -m unittest discover -s lab4 -p 'test_*.py' -v
+mvn -f lab4/pom.xml test
 ```
 
-The tests use loopback sockets, so **you do not need your colleagues' laptop to
-build or test the lab**. The handout explicitly asks you to demonstrate two
-publishers and two subscribers on **two computers** at the defense. For that
-demonstration, you do need a second computer (a colleague's laptop is one
-option), both computers on a network that can reach the broker's port, and a
-copy of the relevant client files and dependencies on that computer.
+You do not need a colleague's laptop to build or test the lab. The handout asks
+for a defense demo with two publishers and two subscribers on **two computers**.
+For that demo you need a second computer, which can be a colleague's laptop.
+Both computers need the project and a network connection to the broker port.
