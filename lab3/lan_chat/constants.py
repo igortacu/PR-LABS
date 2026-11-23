@@ -1,0 +1,16 @@
+PROTOCOL_NAME = "lan-chat"
+PROTOCOL_VERSION = 1
+
+MAX_TEXT_CHARS = 500
+MAX_DATAGRAM_BYTES = 1400
+MAX_NAME_CHARS = 32
+
+HEARTBEAT_INTERVAL = 5.0
+PEER_TIMEOUT = 15.0
+DISCOVERY_WAIT = 1.0
+
+DEFAULT_BROADCAST_ADDRESS = "255.255.255.255"
+
+MESSAGE_TYPES = frozenset(
+    {"join", "presence", "conflict", "heartbeat", "leave", "general", "private"}
+)
