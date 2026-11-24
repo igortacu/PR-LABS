@@ -145,13 +145,18 @@ public class Broker {
                 .sorted(java.util.Comparator.comparing(TopicInfo::topic)).toList();
     }
 
-    /** Replaces control characters (newlines too) so that a client cannot forge extra log lines. */
+    /**
+     * Client-supplied values (client, topic) keep only visible ASCII characters, without '='.
+     * Newlines, Unicode line separators, spaces and '=' become '?', so a client cannot forge
+     * extra log lines or extra fields such as " client=FAKE" inside a line.
+     */
     static String clean(String text) {
-        return text == null ? "-" : text.replaceAll("\\p{Cntrl}", "?");
+        return text == null ? "-" : text.replaceAll("[^\\x21-\\x7E]|=", "?");
     }
 
     public static void log(String client, String topic, long id, String result) {
+        // The result is written by the broker itself, so it may contain spaces.
         System.out.printf("%s client=%s topic=%s id=%d result=%s%n",
-                Instant.now(), clean(client), clean(topic), id, clean(result));
+                Instant.now(), clean(client), clean(topic), id, result.replaceAll("\\p{Cntrl}", "?"));
     }
 }

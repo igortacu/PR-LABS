@@ -57,7 +57,8 @@ class BrokerTest {
     }
 
     @Test void logFieldsCannotAddLines() {
-        assertEquals("grades?2026 client=fake", Broker.clean("grades\n2026 client=fake"));
+        assertEquals("grades?2026?client?fake", Broker.clean("grades\n2026 client=fake"));
+        assertEquals("a?b?c", Broker.clean("a b\u0085c"));
         assertEquals("-", Broker.clean(null));
     }
 }

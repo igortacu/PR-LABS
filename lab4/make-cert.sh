@@ -17,7 +17,7 @@ for ip in "$@"; do san="$san,ip:$ip"; done
 
 keytool -genkeypair -alias broker -keyalg RSA -keysize 2048 -validity 365 \
   -dname "CN=lab4-broker" -ext "SAN=$san" \
-  -keystore "$dir/broker.p12" -storetype PKCS12 -storepass "$KEYSTORE_PASSWORD"
+  -keystore "$dir/broker.p12" -storetype PKCS12 -storepass:env KEYSTORE_PASSWORD
 keytool -exportcert -rfc -alias broker \
-  -keystore "$dir/broker.p12" -storepass "$KEYSTORE_PASSWORD" -file "$dir/broker.crt"
+  -keystore "$dir/broker.p12" -storepass:env KEYSTORE_PASSWORD -file "$dir/broker.crt"
 echo "Created $dir/broker.p12 (keep private) and $dir/broker.crt (give to clients) for $san"
