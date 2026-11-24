@@ -85,7 +85,9 @@ public class Broker {
             save();
         } catch (IOException error) {
             topic.messages.remove(topic.messages.size() - 1);
-            throw new BrokerException("storage", "Could not save message: " + error.getMessage());
+            // The details (paths on the server) go only to the server log, never to the client.
+            System.err.println(Instant.now() + " storage error: " + error);
+            throw new BrokerException("storage", "Could not save message");
         }
         startWorker(name, topic);
         topic.pending.add(message);
@@ -143,7 +145,13 @@ public class Broker {
                 .sorted(java.util.Comparator.comparing(TopicInfo::topic)).toList();
     }
 
+    /** Replaces control characters (newlines too) so that a client cannot forge extra log lines. */
+    static String clean(String text) {
+        return text == null ? "-" : text.replaceAll("\\p{Cntrl}", "?");
+    }
+
     public static void log(String client, String topic, long id, String result) {
-        System.out.printf("%s client=%s topic=%s id=%d result=%s%n", Instant.now(), client, topic, id, result);
+        System.out.printf("%s client=%s topic=%s id=%d result=%s%n",
+                Instant.now(), clean(client), clean(topic), id, clean(result));
     }
 }

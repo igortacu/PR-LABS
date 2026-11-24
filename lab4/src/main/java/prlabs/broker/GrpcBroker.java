@@ -6,7 +6,7 @@ import io.grpc.Contexts;
 import io.grpc.Grpc;
 import io.grpc.Metadata;
 import io.grpc.Server;
-import io.grpc.ServerBuilder;
+import io.grpc.TlsServerCredentials;
 import io.grpc.ServerInterceptors;
 import io.grpc.ServerInterceptor;
 import io.grpc.ServerCall;
@@ -104,8 +104,8 @@ public class GrpcBroker extends BrokerGrpc.BrokerImplBase {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 3) {
-            System.out.println("Usage: GrpcBroker <port> <data-file> <tokens-file>");
+        if (args.length != 4) {
+            System.out.println("Usage: GrpcBroker <port> <data-file> <tokens-file> <keystore.p12>");
             return;
         }
         Broker broker = new Broker(Path.of(args[1]), Path.of(args[2]));
@@ -118,10 +118,12 @@ public class GrpcBroker extends BrokerGrpc.BrokerImplBase {
                         .withValue(TOKEN, headers.get(header)).withValue(CLIENT, client), call, headers, next);
             }
         };
-        Server server = ServerBuilder.forPort(Integer.parseInt(args[0]))
+        var credentials = TlsServerCredentials.newBuilder()
+                .keyManager(Tls.keyManagers(Path.of(args[3])).getKeyManagers()).build();
+        Server server = Grpc.newServerBuilderForPort(Integer.parseInt(args[0]), credentials)
                 .addService(ServerInterceptors.intercept(new GrpcBroker(broker), auth))
                 .build().start();
-        System.out.println("gRPC broker listening on port " + args[0]);
+        System.out.println("gRPC broker (TLS) listening on port " + args[0]);
         server.awaitTermination();
     }
 }

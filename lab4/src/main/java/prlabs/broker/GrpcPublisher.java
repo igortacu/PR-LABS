@@ -1,7 +1,8 @@
 package prlabs.broker;
 
 import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
+import io.grpc.Grpc;
+import io.grpc.TlsChannelCredentials;
 import io.grpc.Metadata;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.MetadataUtils;
@@ -12,12 +13,14 @@ import prlabs.broker.proto.PublishRequest;
 public class GrpcPublisher {
     public static void main(String[] args) throws Exception {
         if (args.length != 4) {
-            System.out.println("Usage: GrpcPublisher <host:port> <topic> <name> <token>");
+            System.out.println("Usage: BROKER_TOKEN=... GrpcPublisher <host:port> <topic> <name> <broker.crt>");
             return;
         }
-        ManagedChannel channel = ManagedChannelBuilder.forTarget(args[0]).usePlaintext().build();
+        String token = Tls.token();
+        var credentials = TlsChannelCredentials.newBuilder().trustManager(new java.io.File(args[3])).build();
+        ManagedChannel channel = Grpc.newChannelBuilder(args[0], credentials).build();
         Metadata headers = new Metadata();
-        headers.put(Metadata.Key.of("authorization", Metadata.ASCII_STRING_MARSHALLER), "Bearer " + args[3]);
+        headers.put(Metadata.Key.of("authorization", Metadata.ASCII_STRING_MARSHALLER), "Bearer " + token);
         var stub = BrokerGrpc.newBlockingStub(channel).withInterceptors(MetadataUtils.newAttachHeadersInterceptor(headers));
         try (Scanner keyboard = new Scanner(System.in)) {
             while (keyboard.hasNextLine()) {

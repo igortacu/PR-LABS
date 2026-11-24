@@ -11,10 +11,11 @@ import com.google.gson.Gson;
 public class HttpPublisher {
     public static void main(String[] args) throws Exception {
         if (args.length != 4) {
-            System.out.println("Usage: HttpPublisher <broker-url> <topic> <name> <token>");
+            System.out.println("Usage: BROKER_TOKEN=... HttpPublisher <https://broker:port> <topic> <name> <broker.crt>");
             return;
         }
-        HttpClient client = HttpClient.newHttpClient();
+        String token = Tls.token();
+        HttpClient client = HttpClient.newBuilder().sslContext(Tls.clientContext(java.nio.file.Path.of(args[3]))).build();
         Gson gson = new Gson();
         URI url = URI.create(args[0] + "/topics/" + args[1] + "/messages");
         Scanner keyboard = new Scanner(System.in, StandardCharsets.UTF_8);
@@ -23,7 +24,7 @@ public class HttpPublisher {
             String json = gson.toJson(java.util.Map.of("sender", args[2], "body", body));
             HttpRequest request = HttpRequest.newBuilder(url)
                     .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + args[3])
+                    .header("Authorization", "Bearer " + token)
                     .POST(HttpRequest.BodyPublishers.ofString(json)).build();
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             System.out.println(response.statusCode() + " " + response.body());

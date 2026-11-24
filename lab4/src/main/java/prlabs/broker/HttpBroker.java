@@ -2,7 +2,8 @@ package prlabs.broker;
 
 import com.google.gson.Gson;
 import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.HttpsConfigurator;
+import com.sun.net.httpserver.HttpsServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -10,7 +11,7 @@ import java.nio.file.Path;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-/** Part 1: plain JDK HttpServer, no web framework. */
+/** Part 1: the JDK HttpsServer (HTTP over TLS), no web framework. */
 public class HttpBroker {
     private record Input(String sender, String body) {}
     private final Broker broker;
@@ -94,16 +95,17 @@ public class HttpBroker {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 3) {
-            System.out.println("Usage: HttpBroker <port> <data-file> <tokens-file>");
+        if (args.length != 4) {
+            System.out.println("Usage: HttpBroker <port> <data-file> <tokens-file> <keystore.p12>");
             return;
         }
         Broker broker = new Broker(Path.of(args[1]), Path.of(args[2]));
         HttpBroker app = new HttpBroker(broker);
-        HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", Integer.parseInt(args[0])), 0);
+        HttpsServer server = HttpsServer.create(new InetSocketAddress("0.0.0.0", Integer.parseInt(args[0])), 0);
+        server.setHttpsConfigurator(new HttpsConfigurator(Tls.serverContext(Path.of(args[3]))));
         server.createContext("/", app::handle);
         server.setExecutor(Executors.newCachedThreadPool());
         server.start();
-        System.out.println("HTTP broker listening on port " + args[0]);
+        System.out.println("HTTPS broker listening on port " + args[0]);
     }
 }
